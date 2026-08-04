@@ -1,0 +1,10 @@
+results/*
+data.json
+
+# modrinth does not condone scraping, so don't do it :)
+src/scraper.py
+
+
+# Added by cargo
+
+/target
