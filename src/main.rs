@@ -1,5 +1,7 @@
 use std::{collections::HashMap, fmt::Display};
 
+use regex::regex;
+
 use std::fs::File;
 use std::io::prelude::*;
 
@@ -31,18 +33,48 @@ enum Version {
     Pre(String),
     Candidate(String),
     Snapshot(String),
+    Beta(String),
+    Alpha(String),
     Other(String),
 }
 
 impl Version {
+    fn is_release(s: &str) -> bool {
+        regex!(r"^(1|26)\.(\d|1\d|2[0-1])(\.\d*)?$").is_match(s)
+    }
+
+    fn is_pre(s: &str) -> bool {
+        regex!(r"^(1|26)\.(\d|1\d|2[0-1])(\.\d*)?-pre-?\d*$").is_match(s)
+    }
+
+    fn is_candidate(s: &str) -> bool {
+        regex!(r"^(1|26)\.(\d|1\d|2[0-1])(\.\d*)?-rc-?\d*$").is_match(s)
+    }
+
+    fn is_snapshot(s: &str) -> bool {
+        regex!(r"^[1-2]\dw[0-5]\d[a-f]$|2[6-9]\.[1-4]-snapshot-\d*").is_match(s)
+    }
+
+    fn is_beta(s: &str) -> bool {
+        regex!(r"^b1\.[0-8](\.1?\d)?(_\d*|[a-b])?$").is_match(s)
+    }
+
+    fn is_alpha(s: &str) -> bool {
+        regex!(r"^a1\.[0-2].1?\d(_\d*|[a-b])?$").is_match(s)
+    }
+
     fn from_str(s: &str) -> Self {
-        if s[2..3] == *"w" {
+        if Self::is_snapshot(s) {
             return Self::Snapshot(s.to_string());
-        } else if s.contains("pre") {
+        } else if Self::is_pre(s) {
             return Self::Pre(s.to_string());
-        } else if s.contains("rc") {
+        } else if Self::is_candidate(s) {
             return Self::Candidate(s.to_string());
-        } else if s.starts_with("1.") || s.starts_with("26.") {
+        } else if Self::is_alpha(s) {
+            return Self::Alpha(s.to_string());
+        } else if Self::is_beta(s) {
+            return Self::Beta(s.to_string());
+        } else if Self::is_release(s) {
             return Self::Release(s.to_string());
         } else {
             return Self::Other(s.to_string());
@@ -146,7 +178,7 @@ fn main() {
 
     for i in &data.versions {
         match i.0 {
-            Version::Snapshot(_) => (),
+            Version::Alpha(_) => (),
             _ => continue,
         };
         if *i.1 > max_size {
@@ -160,7 +192,7 @@ fn main() {
 
     for i in hash_vec {
         match i.0 {
-            Version::Snapshot(_) => (),
+            Version::Alpha(_) => (),
             _ => continue,
         };
         let l = format!("{:?} ({})", i.0, i.1).len();
