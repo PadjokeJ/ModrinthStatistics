@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use std::fs::File;
 use std::io::prelude::*;
@@ -13,14 +13,6 @@ enum Loader {
     Forge,
 }
 
-#[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Debug)]
-enum Version {
-    Release(String),
-    Candidate(String),
-    Snapshot(String),
-    Other(String),
-}
-
 impl Loader {
     fn from_str(s: &str) -> Option<Self> {
         match s {
@@ -33,10 +25,35 @@ impl Loader {
     }
 }
 
+#[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Debug)]
+enum Version {
+    Release(String),
+    Pre(String),
+    Candidate(String),
+    Snapshot(String),
+    Other(String),
+}
+
+impl Version {
+    fn from_str(s: &str) -> Self {
+        if s[2..3] == *"w" {
+            return Self::Snapshot(s.to_string());
+        } else if s.contains("pre") {
+            return Self::Pre(s.to_string());
+        } else if s.contains("rc") {
+            return Self::Candidate(s.to_string());
+        } else if s.starts_with("1.") || s.starts_with("26.") {
+            return Self::Release(s.to_string());
+        } else {
+            return Self::Other(s.to_string());
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 struct Data {
     licenses: HashMap<String, i32>,
-    versions: HashMap<String, i32>,
+    versions: HashMap<Version, i32>,
     loaders: HashMap<Loader, i32>,
 }
 
@@ -108,7 +125,7 @@ fn main() {
                     }
 
                     for version in versions {
-                        *data.versions.entry(version).or_insert(0) += 1;
+                        *data.versions.entry(Version::from_str(&version)).or_insert(0) += 1;
                     }
 
                     *data.licenses.entry(license).or_insert(0) += 1;
@@ -120,16 +137,20 @@ fn main() {
 
     let mut file = File::create("data.json").unwrap();
 
-    file.write_all(serde_json::to_string(&data).unwrap().as_bytes())
-        .unwrap();
+    /*file.write_all(serde_json::to_string(&data).unwrap().as_bytes())
+        .unwrap();*/
 
     let max_length = 90;
 
     let mut max_size = 0;
 
-    for license in &data.versions {
-        if *license.1 > max_size {
-            max_size = *license.1;
+    for i in &data.versions {
+        match i.0 {
+            Version::Snapshot(_) => (),
+            _ => continue,
+        };
+        if *i.1 > max_size {
+            max_size = *i.1;
         }
     }
 
@@ -138,12 +159,16 @@ fn main() {
     hash_vec.sort_by(|a, b| b.1.cmp(a.1));
 
     for i in hash_vec {
+        match i.0 {
+            Version::Snapshot(_) => (),
+            _ => continue,
+        };
         let l = format!("{:?} ({})", i.0, i.1).len();
         println!(
-            "{} ({}){}:  {}",
+            "{:?} ({}){}:  {}",
             i.0,
             i.1,
-            " ".repeat(30 - l),
+            " ".repeat(40 - l),
             "#".repeat((*i.1 / divisor) as usize + 1)
         );
     }
