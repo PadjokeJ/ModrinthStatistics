@@ -5,12 +5,20 @@ use std::io::prelude::*;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Hash, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Debug)]
 enum Loader {
     Fabric,
     Neoforge,
     Quilt,
     Forge,
+}
+
+#[derive(Serialize, Deserialize, Hash, PartialEq, Eq, Debug)]
+enum Version {
+    Release(String),
+    Candidate(String),
+    Snapshot(String),
+    Other(String),
 }
 
 impl Loader {
@@ -106,7 +114,7 @@ fn main() {
                     *data.licenses.entry(license).or_insert(0) += 1;
                 }
             }
-            Err(e) => println!("File open error \"{:?}\"", e)
+            Err(e) => println!("File open error \"{:?}\"", e),
         }
     }
 
@@ -114,4 +122,29 @@ fn main() {
 
     file.write_all(serde_json::to_string(&data).unwrap().as_bytes())
         .unwrap();
+
+    let max_length = 90;
+
+    let mut max_size = 0;
+
+    for license in &data.versions {
+        if *license.1 > max_size {
+            max_size = *license.1;
+        }
+    }
+
+    let divisor = (max_size as f32 / max_length as f32) as i32;
+    let mut hash_vec: Vec<_> = data.versions.iter().collect();
+    hash_vec.sort_by(|a, b| b.1.cmp(a.1));
+
+    for i in hash_vec {
+        let l = format!("{:?} ({})", i.0, i.1).len();
+        println!(
+            "{} ({}){}:  {}",
+            i.0,
+            i.1,
+            " ".repeat(30 - l),
+            "#".repeat((*i.1 / divisor) as usize + 1)
+        );
+    }
 }
