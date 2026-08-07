@@ -1,4 +1,10 @@
-use std::{collections::HashMap, fmt::Display, hash::Hash};
+use std::{
+    collections::{HashMap, HashSet},
+    env,
+    fmt::Debug,
+    hash::Hash,
+    process::exit,
+};
 
 use regex::regex;
 
@@ -146,6 +152,8 @@ struct ApiResult {
 }
 
 fn main() {
+    let mut seen: HashSet<String> = HashSet::new();
+
     let mut data: Data = Data {
         licenses: HashMap::new(),
         versions: HashMap::new(),
@@ -176,6 +184,11 @@ fn main() {
                         },
                     };
 
+                    if seen.contains(&hit.project_id) {
+                        continue;
+                    }
+                    seen.insert(hit.project_id);
+
                     for category in categories {
                         match Loader::from_str(&category) {
                             Some(loader) => *data.loaders.entry(loader).or_insert(0) += 1,
@@ -204,33 +217,57 @@ fn main() {
     file.write_all(serde_json::to_string(&data).unwrap().as_bytes())
         .unwrap();
 
+    let args: Vec<String> = env::args().collect();
+
+    if args.len() <= 1 {
+        println!("Not enough arguments provided for plot graph");
+        exit(1)
+    };
+
+    for arg in &args[1..] {
+        match arg.as_str() {
+            "loader" => plot(&data.loaders),
+            "version" => plot(&data.versions),
+            "license" => plot(&data.licenses),
+            _ => {
+                println!(
+                    "To plot data, please provide one or multiple of these 3 arguments;\n=> loader\n=> version\n=> license"
+                );
+                exit(0);
+            }
+        };
+        println!()
+    }
+}
+
+fn plot<T: Debug>(data: &HashMap<T, i32>) {
     let max_length = 90;
 
     let mut max_size = 0;
+    let mut max_name_len = 0;
 
-    for i in &data.authors {
+    for i in data {
         if *i.1 > max_size {
             max_size = *i.1;
+        }
+        let l = format!("{:?} ({})", *i.0, *i.1).len();
+        if l > max_name_len {
+            max_name_len = l;
         }
     }
 
     let divisor = (max_size as f32 / max_length as f32) as i32;
-    let mut hash_vec: Vec<_> = data.authors.iter().collect();
+    let mut hash_vec: Vec<_> = (*data).iter().collect();
     hash_vec.sort_by(|a, b| b.1.cmp(a.1));
 
-    let mut limit = 100;
     for i in hash_vec {
         let l = format!("{:?} ({})", i.0, i.1).len();
         println!(
-            "{} ({}){}:  {}",
+            "{:?} ({}){}:  {}",
             i.0,
             i.1,
-            " ".repeat(40 - l),
+            " ".repeat(max_name_len - l),
             "#".repeat((*i.1 / divisor) as usize + 1)
         );
-        limit -= 1;
-        if limit < 0 {
-            break;
-        }
     }
 }
